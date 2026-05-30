@@ -2,7 +2,7 @@
 
 <div align="center">
 
-<img src="https://capsule-render.vercel.app/api?type=waving&color=gradient&customColorList=12,20,24,30&height=200&section=header&text=KORZHINSKII-Net&fontSize=60&fontColor=ffffff&animation=fadeIn&fontAlignY=38&desc=Physics-Informed%20Neural%20Networks%20for%20Mineral%20Prospectivity&descAlignY=60&descSize=14" />
+<img src="https://capsule-render.vercel.app/api?type=waving&color=gradient&customColorList=12,20,24,30&height=200&section=header&text=KORZHINSKII-Net&fontSize=60&fontColor=ffffff&animation=fadeIn&fontAlignY=38&desc=Physics-Informed%20Neural%20Network%20for%20Mineral%20Prospectivity&descAlignY=60&descSize=14" />
 
 ### *A Physics-Informed Neural Network for Mineral Prospectivity Modelling*
 
@@ -34,7 +34,7 @@ The network jointly solves for:
 
 <br>
 
-## 🗺️ Russian Ore Provinces Covered
+## 🗺️ Ore Provinces Covered
 
 <div align="center">
 
@@ -225,8 +225,6 @@ Released under the **Apache License 2.0** — see [`LICENSE`](LICENSE).
 ---
 
 <div align="center">
-
-### 🜚 *Built on the shoulders of Korzhinskii's metasomatic theory* 🜚
 
 ![Made with PyTorch](https://img.shields.io/badge/Made_with-PyTorch-ee4c2c?style=flat-square&logo=pytorch)
 ![Powered by Physics](https://img.shields.io/badge/Powered_by-Physics-b026ff?style=flat-square&logo=atom)
