@@ -1,0 +1,7 @@
+__pycache__/
+*.pyc
+venv/
+data/
+output/
+.DS_Store
+make_paper_figures.py
