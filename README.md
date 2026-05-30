@@ -4,7 +4,7 @@
 
 <img src="https://capsule-render.vercel.app/api?type=waving&color=gradient&customColorList=12,20,24,30&height=200&section=header&text=KORZHINSKII-Net&fontSize=60&fontColor=ffffff&animation=fadeIn&fontAlignY=38&desc=Physics-Informed%20Neural%20Networks%20for%20Mineral%20Prospectivity&descAlignY=60&descSize=14" />
 
-### *A Physics-Informed Neural Network for Mineral Prospectivity Modelling in Russian Ore Provinces*
+### *A Physics-Informed Neural Network for Mineral Prospectivity Modelling*
 
 [![License](https://img.shields.io/badge/License-Apache_2.0-ff6b9d?style=for-the-badge&logo=apache&logoColor=white)](LICENSE)
 [![Python](https://img.shields.io/badge/Python-3.9+-00d4ff?style=for-the-badge&logo=python&logoColor=white)](https://www.python.org/)
