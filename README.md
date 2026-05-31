@@ -129,19 +129,19 @@ $$
 
 constrained by:
 
-**🌊 Darcy flow**
+**Darcy flow**
 
 $$
 \mathbf{q} = -\frac{k}{\mu}\nabla P
 $$
 
-**🔥 Advection–diffusion heat transport**
+**Advection–diffusion heat transport**
 
 $$
 \rho c_p \mathbf{q} \cdot \nabla T = \nabla \cdot (\lambda \nabla T)
 $$
 
-**⚗️ Softplus-saturated reaction rate**
+**Softplus-saturated reaction rate**
 
 $$
 R(T, C) = \mathrm{softplus}\big(\alpha\, k(T)\, [C - C_{\mathrm{eq}}(T, \ell)]\big)
