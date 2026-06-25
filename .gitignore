@@ -5,3 +5,7 @@ data/
 output/
 .DS_Store
 make_paper_figures.py
+venv/
+__pycache__/
+*.pyc
+.DS_Store

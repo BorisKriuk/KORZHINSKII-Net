@@ -1,9 +1,25 @@
-"""Mineral Prospectivity PINN — multi-site (v6).
+"""Mineral Prospectivity PINN — multi-site (v8).
 
-Changes vs v5:
-  - auto_z_prior_from_src(): if site has no z_prior set, derive one from
-    the argmax of the precomputed src_z proxy bump. Fixes Udokan/Natalka/
-    Mirny where the column ran but the peak depth wasn't pinned.
+Changes vs v7:
+  - project_mines() now merges curated `seed_mines` (real district deposit
+    lat/lon) from sites.py with any OSM-fetched mines, de-duplicates within
+    1 km, then projects to radial x. This guarantees >=5 positives per site
+    so no fold/eval is skipped.
+  - DEPOSIT_TYPE_BY_SITE extended for the 7-site Korzhinskii-scope registry.
+  - Added "skarn" PAIR_CASCADE (carbonate×intrusive front) for Dalnegorsk.
+
+Carried over from v7:
+  - Dynamic, chemistry-coupled permeability via log_alpha_clog (self-sealing).
+  - Sharper reaction front (REACT_BETA).
+
+STATED LIMITATIONS (do not overclaim):
+  Single-phase, single-component, steady reactive-transport approximation.
+  NOT two-phase flow, multicomponent chemistry, or the full discontinuous
+  metasomatic-column solutions of Korzhinskii. It is a physics-informed
+  regularizer for prospectivity, applicable only to fluid-driven,
+  replacement-style systems (see sites.py scope note).
+
+NOTE: state_dict gained log_alpha_clog; v6 checkpoints will not load. Retrain.
 """
 import argparse, json, math
 from pathlib import Path
@@ -25,6 +41,15 @@ DIP_AMP = 0.08
 LITH_NAMES = ["sediment", "basalt", "intrusive", "evaporite", "other"]
 SED, BAS, INT, EVA, OTH = 0, 1, 2, 3, 4
 
+
+def _haversine_km(la1, lo1, la2, lo2):
+    R = 6371.0
+    p1, p2 = math.radians(la1), math.radians(la2)
+    dp = math.radians(la2 - la1); dl = math.radians(lo2 - lo1)
+    a = math.sin(dp / 2) ** 2 + math.cos(p1) * math.cos(p2) * math.sin(dl / 2) ** 2
+    return 2 * R * math.asin(math.sqrt(a))
+
+
 # -------- modulator grids (fixed for state_dict stability) -------------------
 X_GRID_N = 80
 Z_GRID_N = 80
@@ -37,20 +62,23 @@ SRC_FLOOR     = 1.0
 SRC_GAIN      = 3.0
 SRC_GAIN_DEEP = 2.0
 
+# reaction-front sharpness (reviewer: Korzhinskii fronts are sharp).
+REACT_BETA = 6.0   # was implicitly 2.0
+
 # threshold above which src_z is considered "non-flat" enough to derive a prior
 AUTO_ZPRIOR_THRESH = 1.5
 
+# Only in-scope, fluid-driven replacement deposit classes remain.
 DEPOSIT_TYPE_BY_SITE = {
-    "norilsk":      "magmatic_sulfide",
-    "pechenga":     "magmatic_sulfide",
-    "talnakh":      "magmatic_sulfide",
-    "udokan":       "sediment_cu",
-    "dzhezkazgan":  "sediment_cu",
-    "sukhoi_log":   "orogenic_au",
-    "natalka":      "orogenic_au",
-    "muruntau":     "orogenic_au",
-    "mirny":        "kimberlite",
-    "aikhal":       "kimberlite",
+    "udokan":         "sediment_cu",
+    "dzhezkazgan":    "sediment_cu",   # analog (not in registry, kept for reuse)
+    "sukhoi_log":     "orogenic_au",
+    "natalka":        "orogenic_au",
+    "muruntau":       "orogenic_au",   # analog
+    "olimpiada":      "orogenic_au",
+    "berezovskoye":   "orogenic_au",
+    "vorontsovskoye": "orogenic_au",
+    "dalnegorsk":     "skarn",
 }
 DEFAULT_DEPOSIT_TYPE = "hydrothermal"
 
@@ -121,8 +149,11 @@ def lith_at(x, z, column):
 
 
 # ---------------------------------------------------------- mines & validation
-def project_mines(data_dir, site_lat, site_lon):
-    pts = []
+def project_mines(data_dir, site_lat, site_lon, seed_mines=None):
+    """Merge OSM-fetched mines with curated seed_mines (lat, lon), dedupe
+    within 1 km, project to radial x in [0, AR]. Falls back to a 3-point
+    synthetic set only if nothing survives."""
+    latlon = []
     try:
         data = json.loads((data_dir / "mines.json").read_text())
         for e in data.get("elements", []):
@@ -130,14 +161,28 @@ def project_mines(data_dir, site_lat, site_lon):
             lon = e.get("lon") or (e.get("center") or {}).get("lon")
             if lat is None or lon is None:
                 continue
-            dx = (lon - site_lon) * 111000.0 * math.cos(math.radians(site_lat))
-            dy = (lat - site_lat) * 111000.0
-            d = math.hypot(dx, dy)
-            if d > LX_M:
-                continue
-            pts.append(AR * d / LX_M)
+            latlon.append((float(lat), float(lon)))
     except Exception:
         pass
+
+    if seed_mines:
+        latlon += [(float(a), float(b)) for a, b in seed_mines]
+
+    dedup = []
+    for la, lo in latlon:
+        if any(_haversine_km(la, lo, la2, lo2) < 1.0 for la2, lo2 in dedup):
+            continue
+        dedup.append((la, lo))
+
+    pts = []
+    for la, lo in dedup:
+        dx = (lo - site_lon) * 111000.0 * math.cos(math.radians(site_lat))
+        dy = (la - site_lat) * 111000.0
+        d = math.hypot(dx, dy)
+        if d > LX_M:
+            continue
+        pts.append(AR * d / LX_M)
+
     if not pts:
         pts = [2.0, 5.0, 8.0]
     return pts
@@ -272,29 +317,19 @@ def _bumps_from_contacts(contacts, n_grid=Z_GRID_N, bw=BW_Z,
     return grid, floor + gain * K
 
 
-def _deep_intrusive_bump(column, n_grid=Z_GRID_N, bw=BW_Z * 2.0,
-                         floor=SRC_FLOOR, gain=SRC_GAIN_DEEP):
-    grid = torch.linspace(0.0, 1.0, n_grid, device=DEVICE)
-    deep_zs = [0.5 * (t + b) for t, b, c in column if c == INT]
-    if not deep_zs:
-        return grid, torch.ones(n_grid, device=DEVICE), None
-    z_deep = max(deep_zs)
-    K = torch.exp(-0.5 * ((grid - z_deep) / bw) ** 2)
-    return grid, floor + gain * K, z_deep
-
-
+# Only replacement-style deposit classes remain in scope.
 PAIR_CASCADE = {
-    "magmatic_sulfide": [(INT, EVA, "intrusive×evaporite"),
-                         (BAS, INT, "basalt×intrusive"),
-                         (SED, INT, "sediment×intrusive")],
-    "sediment_cu":     [(SED, EVA, "sediment×evaporite"),
-                         (SED, BAS, "sediment×basalt"),
-                         (SED, INT, "sediment×intrusive")],
-    "orogenic_au":     [(SED, INT, "sediment×intrusive"),
-                         (BAS, INT, "basalt×intrusive"),
-                         (SED, BAS, "sediment×basalt")],
-    "hydrothermal":    [(SED, BAS, "sediment×basalt"),
-                         (SED, INT, "sediment×intrusive")],
+    "sediment_cu":  [(SED, EVA, "sediment×evaporite"),
+                     (SED, BAS, "sediment×basalt"),
+                     (SED, INT, "sediment×intrusive")],
+    "orogenic_au":  [(SED, INT, "sediment×intrusive"),
+                     (BAS, INT, "basalt×intrusive"),
+                     (SED, BAS, "sediment×basalt")],
+    "skarn":        [(SED, INT, "carbonate×intrusive"),
+                     (EVA, INT, "evaporite×intrusive"),
+                     (BAS, INT, "volcanic×intrusive")],
+    "hydrothermal": [(SED, BAS, "sediment×basalt"),
+                     (SED, INT, "sediment×intrusive")],
 }
 
 
@@ -319,8 +354,7 @@ def build_proxy_modulators(data_dir, site_lat, site_lon,
         k_mod_x = K
         meta["proxies_used"].append("faults")
         meta["proxy_chain"].append(f"k_mod_x: faults({len(fpts)} pts)")
-    elif epts and deposit_type in ("magmatic_sulfide", "orogenic_au",
-                                   "kimberlite", "hydrothermal"):
+    elif epts and deposit_type in ("orogenic_au", "hydrothermal", "skarn"):
         _, K = _xline_kde(epts, gain=KMOD_GAIN_EQ)
         k_mod_x = K
         meta["proxies_used"].append("seismicity_fallback")
@@ -329,17 +363,7 @@ def build_proxy_modulators(data_dir, site_lat, site_lon,
     else:
         meta["proxy_chain"].append("k_mod_x: none (uniform)")
 
-    if deposit_type == "kimberlite":
-        _, S, z_deep = _deep_intrusive_bump(column)
-        if z_deep is not None:
-            src_z = S
-            meta["proxies_used"].append("deep_intrusive_root")
-            meta["proxy_chain"].append(
-                f"src_z: deepest intrusive @ z={z_deep:.2f} (root zone)")
-            meta["contact_pair"] = "deep_intrusive_root"
-        else:
-            meta["proxy_chain"].append("src_z: no intrusive layer present")
-    elif deposit_type in PAIR_CASCADE:
+    if deposit_type in PAIR_CASCADE:
         fired = False
         for a, b, name in PAIR_CASCADE[deposit_type]:
             cs = find_contacts_robust(column, a, b)
@@ -368,14 +392,9 @@ def build_proxy_modulators(data_dir, site_lat, site_lon,
     return k_mod_x, src_z, meta
 
 
-# ---------------------------- NEW: auto z-prior derivation -------------------
+# ---------------------------- auto z-prior derivation ------------------------
 def auto_z_prior_from_src(src_z_grid, src_z, threshold=AUTO_ZPRIOR_THRESH):
-    """Return argmax-z of src_z if the proxy is non-flat, else None.
-
-    Threshold is on max(src_z) — uniform src_z = SRC_FLOOR = 1.0; an active
-    contact bump rises to ~SRC_FLOOR + SRC_GAIN ~ 4.0. We accept anything
-    above 1.5 as 'meaningfully bumped'.
-    """
+    """Return argmax-z of src_z if the proxy is non-flat, else None."""
     if not torch.is_tensor(src_z):
         src_z = torch.as_tensor(src_z, dtype=torch.float32, device=DEVICE)
     if float(src_z.max().item()) < threshold:
@@ -413,6 +432,8 @@ class PINN(nn.Module):
             torch.tensor([-1.5, -1.2, -1.0, -3.5, -1.5]))
         self.b_T   = nn.Parameter(torch.tensor(1.0))
         self.log_kr = nn.Parameter(torch.tensor(0.0))
+        # self-sealing: precipitate reduces permeability (dynamic k, not static)
+        self.log_alpha_clog = nn.Parameter(torch.tensor(-1.0))
 
         self.register_buffer("T_bottom", torch.tensor(1.0))
         self.register_buffer("k_mod_x_grid", torch.linspace(0, AR, X_GRID_N))
@@ -466,8 +487,11 @@ def residuals(model, x_in, z_in, lith, intr):
     Txx, Tzz = grad(Tx, x), grad(Tz, z)
     Cxx, Czz = grad(Cx, x), grad(Cz, z)
 
+    # --- dynamic, chemistry-coupled permeability (reviewer: static k) ---
     k_lith = torch.exp(model.log_k[lith])
-    k_eff  = k_lith * model.k_mod(x)
+    clog   = torch.exp(model.log_alpha_clog) * C
+    k_eff  = k_lith * model.k_mod(x) / (1.0 + clog)
+
     qx = -k_eff * Px
     qz = -k_eff * (Pz - RA * T)
     Rd = grad(qx, x) + grad(qz, z)
@@ -477,7 +501,7 @@ def residuals(model, x_in, z_in, lith, intr):
     log_Ceq = model.log_Ceq_lith[lith] + model.b_T * T
     sigma   = torch.log(C + 1e-3) - log_Ceq
     kr_eff  = torch.exp(model.log_kr) * model.src_mod(z)
-    Rrate   = kr_eff * F.softplus(sigma, beta=2.0)
+    Rrate   = kr_eff * F.softplus(sigma, beta=REACT_BETA)
 
     Rc = qx * Cx + qz * Cz - (Cxx + Czz) / PE_C + Rrate
     return Rd, Rh, Rc, Rrate
@@ -585,14 +609,16 @@ def sensitivity_probe(model, column, mines, deltas=(-0.5, 0.5)):
             per_lith[lname] = shifts
         out["params"][pname] = per_lith
 
-    bT_shifts = []
-    for d in deltas:
-        old = model.b_T.data.item()
-        model.b_T.data = torch.tensor(old + d, device=model.b_T.device)
-        new = mine_M_eval(model, mines, column)
-        model.b_T.data = torch.tensor(old, device=model.b_T.device)
-        bT_shifts.append({"delta": d, "M_ratio": new / base})
-    out["scalars"]["b_T"] = bT_shifts
+    for sname in ("b_T", "log_alpha_clog"):
+        param = getattr(model, sname)
+        s_shifts = []
+        for d in deltas:
+            old = param.data.item()
+            param.data = torch.tensor(old + d, device=param.device)
+            new = mine_M_eval(model, mines, column)
+            param.data = torch.tensor(old, device=param.device)
+            s_shifts.append({"delta": d, "M_ratio": new / base})
+        out["scalars"][sname] = s_shifts
     return out
 
 
@@ -670,7 +696,8 @@ def train_one(site_key, seed, epochs, n_col, lr,
                   f"M@tr={Mm.mean().item():.2f} M@val={mval:.2f} "
                   f"M_bg={Rrate.mean().item():.2f} "
                   f"M_max={Rrate.max().item():.2f} z*={z_argmax:.2f} "
-                  f"b_T={model.b_T.item():.2f}")
+                  f"b_T={model.b_T.item():.2f} "
+                  f"a_clog={torch.exp(model.log_alpha_clog).item():.2f}")
 
     train_score = mine_M_eval(model, mines_train, column)
     val_score   = mine_M_eval(model, mines_val, column) \
@@ -685,7 +712,7 @@ def train(site_key, epochs=2000, n_col=2000, lr=2e-3,
     out_dir  = Path("output") / site_key
     out_dir.mkdir(parents=True, exist_ok=True)
     column = build_column(data_dir, s["fallback_column"])
-    mines  = project_mines(data_dir, s["lat"], s["lon"])
+    mines  = project_mines(data_dir, s["lat"], s["lon"], s.get("seed_mines"))
 
     z_prior = z_prior_cli if z_prior_cli is not None else s.get("z_prior")
     w_zp    = s.get("z_prior_w", w_zprior)
@@ -699,7 +726,7 @@ def train(site_key, epochs=2000, n_col=2000, lr=2e-3,
     k_mod_x, src_z, proxy_meta = build_proxy_modulators(
         data_dir, s["lat"], s["lon"], deposit_type, column)
 
-    # ---------- NEW: auto z-prior fallback from proxy src_z ----------
+    # ---------- auto z-prior fallback from proxy src_z ----------
     z_prior_source = "site/cli" if z_prior is not None else None
     if z_prior is None:
         srcz_grid_t = torch.linspace(0, 1, src_z.numel(), device=DEVICE)
@@ -782,9 +809,10 @@ def train(site_key, epochs=2000, n_col=2000, lr=2e-3,
                 for sh in shifts:
                     worst.append((abs(1 - sh["M_ratio"]),
                                   pname, lname, sh["delta"], sh["M_ratio"]))
-        for sh in sens.get("scalars", {}).get("b_T", []):
-            worst.append((abs(1 - sh["M_ratio"]),
-                          "b_T", "scalar", sh["delta"], sh["M_ratio"]))
+        for sname, shifts in sens.get("scalars", {}).items():
+            for sh in shifts:
+                worst.append((abs(1 - sh["M_ratio"]),
+                              sname, "scalar", sh["delta"], sh["M_ratio"]))
         worst.sort(reverse=True)
         print("top 5 most-sensitive perturbations:")
         for w in worst[:5]:

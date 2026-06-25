@@ -16,12 +16,16 @@ HDR = {"User-Agent": "pinn-mining/0.5"}
 
 # Heat-flow compilation (mW/m^2) — published continental HF for each site.
 HEAT_FLOW_DB = {
-    "norilsk":    {"hf_mwm2": 55.0, "src": "Khutorskoy 2013"},
-    "pechenga":   {"hf_mwm2": 42.0, "src": "Slagstad 2008"},
-    "udokan":     {"hf_mwm2": 48.0, "src": "Duchkov 2014"},
-    "sukhoi_log": {"hf_mwm2": 45.0, "src": "Duchkov 2010"},
-    "natalka":    {"hf_mwm2": 60.0, "src": "Smirnov 2008"},
-    "mirny":      {"hf_mwm2": 40.0, "src": "Duchkov 2014"},
+    "norilsk":        {"hf_mwm2": 55.0, "src": "Khutorskoy 2013"},
+    "pechenga":       {"hf_mwm2": 42.0, "src": "Slagstad 2008"},
+    "udokan":         {"hf_mwm2": 48.0, "src": "Duchkov 2014"},
+    "sukhoi_log":     {"hf_mwm2": 45.0, "src": "Duchkov 2010"},
+    "natalka":        {"hf_mwm2": 60.0, "src": "Smirnov 2008"},
+    "mirny":          {"hf_mwm2": 40.0, "src": "Duchkov 2014"},
+    "olimpiada":      {"hf_mwm2": 50.0, "src": "Duchkov 2014"},
+    "berezovskoye":   {"hf_mwm2": 50.0, "src": "Urals compilation"},
+    "vorontsovskoye": {"hf_mwm2": 50.0, "src": "Urals compilation"},
+    "dalnegorsk":     {"hf_mwm2": 65.0, "src": "Far East compilation"},
 }
 
 
