@@ -179,11 +179,11 @@ KORZHINSKII-Net/
 
 ## Acknowledgements
 
-This work was made possible through the scientific guidance and petrological expertise of:
+We thank for comments:
 
 <div align="center">
 
-| Researcher | Affiliation |
+| Name | Affiliation |
 |:-----------|:------------|
 | **Alexander Simakin** | Institute of Experimental Mineralogy, RAS |
 | **Safonov Oleg** | Institute of Experimental Mineralogy, RAS |
