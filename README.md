@@ -19,7 +19,7 @@
 
 </div>
 
-> Named after **Dmitri Sergeyevich Korzhinskii** (1899–1985) — founder of physico-chemical petrology and the theory of infiltration metasomatism, the physical scaffold this network is constrained by.
+> Named after **Dmitri Sergeyevich Korzhinskii** (1899-1985) - founder of physico-chemical petrology and the theory of infiltration metasomatism, the physical scaffold this network is constrained by.
 
 ---
 
@@ -31,7 +31,7 @@
 
 | Field | Quantity | Governing Physics |
 |:-----:|:---------|:------------------|
-| **T** | Temperature | Advection–diffusion heat transport |
+| **T** | Temperature | Advection-diffusion heat transport |
 | **P** | Pressure | Darcy flow |
 | **C** | Concentration | Reaction-rate-limited solubility |
 
@@ -41,7 +41,7 @@
 
 ## Pipeline
 
-\`\`\`mermaid
+```mermaid
 flowchart LR
     A[fetch.py] -->|Macrostrat / OSM / USGS / NASA POWER| B[pinn.py]
     B -->|trained fields| C[viz.py]
@@ -55,7 +55,7 @@ flowchart LR
     style D fill:#39ff7c,stroke:#000,color:#000
     style E fill:#ffd700,stroke:#000,color:#000
     style F fill:#ff6b9d,stroke:#fff,color:#fff
-\`\`\`
+```
 
 ---
 
@@ -65,11 +65,11 @@ flowchart LR
 
 | Site | Commodity | Tectonic Setting |
 |:-----|:----------|:-----------------|
-| 🟠 **Norilsk** | Ni–Cu–PGE | Siberian Traps |
-| 🔵 **Pechenga** | Ni–Cu sulphide | Baltic Shield (Kola) |
-| 🟠 **Udokan** | Cu (sandstone) | Aldan–Stanovoy |
-| 🟡 **Sukhoi Log** | Au (orogenic) | Baikal–Patom belt |
-| 🟡 **Natalka** | Au (orogenic) | Yana–Kolyma |
+| 🟠 **Norilsk** | Ni-Cu-PGE | Siberian Traps |
+| 🔵 **Pechenga** | Ni-Cu sulphide | Baltic Shield (Kola) |
+| 🟠 **Udokan** | Cu (sandstone) | Aldan-Stanovoy |
+| 🟡 **Sukhoi Log** | Au (orogenic) | Baikal-Patom belt |
+| 🟡 **Natalka** | Au (orogenic) | Yana-Kolyma |
 | 🟣 **Mirny** | Diamond (kimberlite) | Siberian craton |
 
 </div>
@@ -86,13 +86,13 @@ $$(T, P, C) = f_\theta(x, z)$$
 
 constrained by the governing physics:
 
-$$q = -\frac{k}{\mu}\,\nabla P \qquad\text{(Darcy flow)}$$
+$$q = -\frac{k}{\mu}\,\nabla P \qquad \text{(Darcy flow)}$$
 
-$$\rho\,c_p\,(q \cdot \nabla T) = \nabla \cdot (\lambda \nabla T) \qquad\text{(advection–diffusion)}$$
+$$\rho\,c_p\,(q \cdot \nabla T) = \nabla \cdot (\lambda \nabla T) \qquad \text{(advection-diffusion)}$$
 
 $$R(T, C) = \mathrm{softplus}\!\big(\alpha\,k(T)\,[\,C - C_{eq}(T, \ell)\,]\big)$$
 
-The mineralization field — the prediction target — is:
+The mineralization field - the prediction target - is:
 
 $$\boxed{\,M(x, z) = R\big(T(x,z),\, C(x,z)\big)\,}$$
 
@@ -106,14 +106,14 @@ Driven by lithology-specific solubility and proxy modulators: faults, seismicity
 
 | Model | Description |
 |:-----:|:------------|
-| \`PROXY\` | M = k_mod(x)·s_z(z) — no training |
-| \`LR\` | Logistic regression |
-| \`RF\` | Random forest |
-| \`ET\` | Extra trees |
-| \`GB\` | Gradient boosting |
-| \`KNN\` | k-nearest neighbors |
-| \`SVM\` | Support vector (RBF kernel) |
-| \`MLP\` | Multi-layer perceptron |
+| `PROXY` | M = k_mod(x)*s_z(z) - no training |
+| `LR` | Logistic regression |
+| `RF` | Random forest |
+| `ET` | Extra trees |
+| `GB` | Gradient boosting |
+| `KNN` | k-nearest neighbors |
+| `SVM` | Support vector (RBF kernel) |
+| `MLP` | Multi-layer perceptron |
 
 </div>
 
@@ -126,24 +126,26 @@ All baselines use the same CV folds as the PINN, with hard ring negatives and ji
 <details open>
 <summary><b>Installation</b></summary>
 
-\`\`\`bash
+```bash
 python -m venv venv && source venv/bin/activate
 pip install torch numpy matplotlib scikit-learn requests
-\`\`\`
+```
+
 </details>
 
 <details>
 <summary><b>Run end-to-end</b></summary>
 
-\`\`\`bash
+```bash
 python run_all.py --epochs 2000
-\`\`\`
+```
+
 </details>
 
 <details>
 <summary><b>Run benchmark (LODO + 5-fold)</b></summary>
 
-\`\`\`bash
+```bash
 python evaluate_lodo.py \
     --sites all \
     --epochs 800 \
@@ -152,14 +154,15 @@ python evaluate_lodo.py \
     --r-outer 2.0 \
     --kfold 5 \
     --tag fair_5fold_all
-\`\`\`
+```
+
 </details>
 
 ---
 
 ## Project Structure
 
-\`\`\`
+```text
 KORZHINSKII-Net/
 ├── fetch.py              # Data acquisition
 ├── pinn.py               # PINN training
@@ -170,7 +173,7 @@ KORZHINSKII-Net/
 ├── data/                 # Cached site data
 ├── outputs/              # Figures + target maps
 └── LICENSE
-\`\`\`
+```
 
 ---
 
@@ -180,8 +183,8 @@ This work was made possible through the scientific guidance and petrological exp
 
 <div align="center">
 
-| | |
-|:--|:--|
+| Researcher | Affiliation |
+|:-----------|:------------|
 | **Alexander Simakin** | Institute of Experimental Mineralogy, RAS |
 | **Safonov Oleg** | Institute of Experimental Mineralogy, RAS |
 
@@ -191,7 +194,7 @@ This work was made possible through the scientific guidance and petrological exp
 
 ## Citation
 
-\`\`\`bibtex
+```bibtex
 @software{korzhinskii_net_2026,
   author = {Kriuk, Boris},
   title  = {KORZHINSKII-Net: a physics-informed neural network
@@ -199,7 +202,7 @@ This work was made possible through the scientific guidance and petrological exp
   year   = {2026},
   url    = {https://github.com/BorisKriuk/KORZHINSKII-Net}
 }
-\`\`\`
+```
 
 ---
 
